@@ -139,7 +139,6 @@ bool write_two_vectors_csv(const std::string& filepath,
 }
 
 int test = 0;
-bool simulation_running = false;
 std::string file = "kryzys.csv"; //plik wejsciowy
 std::string write_file = "kryzys_out.csv"; //plik wyjsciowy
 //int windows_number = 2 * 5 * 5 * 2*2;
@@ -160,7 +159,7 @@ static int      gBlindRings = 9 * 3 * 9 * 27 * 9 * 9 * 9;      // 3 tr�jk�ty
 static float    gBlindRadius = 0.0f;  // = gBlindRings * gAvgEdgeLen
 
 static constexpr float SOUND_V = 1440.0f / 1.0f; // C++
-bool serio_first = true;
+bool serio_first = false;
 bool rewind_punkt = false;
 
 static size_t gWinIdx = 0;          // kt�ry 5 ms segment aktualnie nadajemy
@@ -195,6 +194,8 @@ float pitch = 0.0f;
 float fov = 45.0f;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+
+bool simulate = false;
 
 static bool gMeshDirty = true;           // do odbudowania buforow
 struct MeshGL {
@@ -825,7 +826,7 @@ void updatePhysics(float dt, struct Cuboid_dimensions Pool, struct Cuboid_dimens
     //std::cout << "Czas propagacji danej ramki:" << " " << time_passed << std::endl;
     if (time_passed * 1000 >= window_ms)
     {
-        //simulation_running = false;
+        //true = false;
     }
 
     if (time_passed / dt >= (window_ms / 1000.0f) / dt && rewind_punkt)
@@ -1275,7 +1276,7 @@ int main()
 
         // Oblicz FPS
         //calculateFPS();
-        //if (simulation_running)
+        //if (true)
         //{
         renderScene();
         //}
@@ -1291,11 +1292,11 @@ int main()
         ImGui::Begin("Start/Stop");
         if (ImGui::Button("Start"))
         {
-            simulation_running = true;
+            simulate = true;
         }
         if (ImGui::Button("Stop"))
         {
-            simulation_running = false;
+            simulate = false;
         }
         ImGui::End();
 
@@ -1557,7 +1558,7 @@ void renderScene()
         }
     }
     frameCount++;
-    if (simulation_running)
+    if (simulate)
     {
         //updatePhysics(dt, Cube, Obstacle);
         //usuwanie zuzytych nodes
@@ -1859,7 +1860,7 @@ int pruneSlowNodes(float minEnergy)
 {
     if (nodes.empty()) return 0;
 
-    float thr2 = abs(minEnergy) / 200.0f;
+    float thr2 = std::abs(minEnergy) / 200.0f;
     if (thr2 <= 0) thr2 = 0.05f;
     const size_t N = nodes.size();
 
@@ -1871,7 +1872,7 @@ int pruneSlowNodes(float minEnergy)
     for (size_t i = 0; i < N; ++i) {
         float p = nodes[i].energy;
         float r = time_passed * SOUND_V;
-        float E = abs(nodes[i].energy);
+        float E = std::abs(nodes[i].energy);
         if (r > 1) E = p / (r);
 
         bool EnergyEnough = (E >= thr2);
@@ -2069,7 +2070,6 @@ int pruneSlowNodes(float minEnergy)
         if (!beginNextWindow() or gWinIdx == windows_number) {
             writeMicCsv(write_file);
             resetMicEvents();
-            simulation_running = false;
         }
         //rewind_punkt = false;
     }

@@ -1,2 +1,4 @@
 bin/*
 build/*
+main.o
+bin/project1.out

@@ -144,7 +144,7 @@ bool write_two_vectors_csv(const std::string& filepath,
 
 bool usun_odbicia = true;
 int test = 0;
-bool simulation_running = false;
+bool true = false;
 std::string file = "new_signal.csv";
 std::string write_file = "new_signal_out.csv";
 int windows_number = 10;
@@ -1240,7 +1240,7 @@ int main()
 
         // Oblicz FPS
         //calculateFPS();
-        //if (simulation_running)
+        //if (true)
         //{
         renderScene();
         //}
@@ -1256,11 +1256,11 @@ int main()
         ImGui::Begin("Start/Stop");
         if (ImGui::Button("Start"))
         {
-            simulation_running = true;
+            true = true;
         }
         if (ImGui::Button("Stop"))
         {
-            simulation_running = false;
+            true = false;
         }
         ImGui::End();
 
@@ -1609,7 +1609,7 @@ void renderScene()
         }
     }
     frameCount++;
-    if (simulation_running)
+    if (true)
     {
         updatePhysics(dt, Cube, Obstacle);
         //-----USUWANIE DOTKNIETYCH NODES-----
@@ -2149,7 +2149,7 @@ int pruneSlowNodes(float minEnergy)
         if (!beginNextWindow() or gWinIdx == windows_number) {
             writeMicCsv(write_file);
             resetMicEvents();
-            simulation_running = false;
+            true = false;
             std::cout << "KONIEC SYMULACJI" << std::endl;
         }
         //rewind_punkt = false;

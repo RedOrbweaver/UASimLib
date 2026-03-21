@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "*.tpp": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/home/user/Projects/Project1/libraries/dr_libs-master"
 }
