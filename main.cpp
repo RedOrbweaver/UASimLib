@@ -1,5 +1,5 @@
 #include "hmain.hpp"
-// #include <windows.h>
+
 #define M_PI 3.1415
 
 std::vector<int> matches;
@@ -11,15 +11,7 @@ std::vector<std::vector<std::pair<float, float>>> wektor;
 static std::vector<std::vector<std::pair<float, float>>> wektorPrev; // bufory okien z poprzedniej ramki
 static std::vector<std::vector<std::pair<float, float>>> wektorCurr; // bufory z bie��cej ramki
 
-struct EchoHit
-{
-    float T = 0.f;                // start okna
-    float T2 = 0.f;               // koniec okna
-    float energy = 0.f;           // energy noda
-    float doppler = 1.f;          // nodes[i].doppler
-    int bounces = 0;              // nodes[i].bounces
-    glm::vec3 dir_in = {0, 0, 1}; // znormalizowany kierunek fali w chwili trafienia (velocity)
-};
+
 
 // Bufory do laczenia ramek
 static std::vector<EchoHit> gPrevHits, gCurrHits;
@@ -158,7 +150,6 @@ static size_t gWinIdx = 0; // kt�ry 5 ms segment aktualnie nadajemy
 
 // WAZNE DANE
 float radius = 0.02f;
-float mic_radius = 0.51f;
 float src_radius = 0.02f;
 float time_passed = 0.0f;
 float window_ms = 1.0f;
@@ -190,29 +181,12 @@ float lastFrame = 0.0f;
 bool simulate = false;
 
 static bool gMeshDirty = true; // do odbudowania buforow
-struct MeshGL
-{
-    GLuint vbo = 0;
-    GLuint ibo = 0;
-    GLsizei indexCount = 0;
-    bool dynamic = false;
-};
 
-struct Triangle
-{
-    int indices[3];
-};
 std::vector<Triangle> triangles;
 std::vector<Triangle> microphone;
 std::vector<Triangle> source_tri;
+ 
 
-struct WindowPacket
-{
-    float tEmit = 0.0f;        // czas startu okna (sek)
-    float amplitude = 0.0f;    // np. max |y| z okna (do progowania/prune)
-    std::vector<float> times;  // czasy pr�bek relatywnie do tEmit [s], 0..5ms
-    std::vector<float> values; // warto�ci pr�bek
-};
 static std::vector<WindowPacket> gWinPackets;
 
 // fala mikrofon i zrodlo
@@ -226,52 +200,18 @@ double fps = 0.0;
 bool first = true;
 bool doKill = false;
 
-struct MicSample
-{
-    float t;
-    float value;
-}; // czas i wartosc
+
 static std::vector<MicSample> gMicEvents;
 std::vector<float> winMean; // �rednie z okien X ms
 
-struct node
-{
-    glm::vec3 position = {0, 0, 0};
-    glm::vec3 velocity = {0, 0, 0}; // kierunek propagacji * C_SOUND
-    float energy = 0.0f;
-    uint8_t bounces = 0; // ile odbic
-    float tEmit = 0.0f;  // czas emisji (sim-time)
-    int seedId = -1;     // indeks wierzcho�ka siatki
-    float suppressUntilT = -1e30f;
-    // float path = 0.0f;
-    float doppler = 1.0f;
-};
 
-std::vector<node> nodes;
-std::vector<node> mic_nodes;
-std::vector<node> src_nodes;
 
-struct source
-{
-    float src_x = 0;
-    float src_y = 0;
-    float src_z = 0;
-    // glm::vec3 starting_point = glm::vec3(src_x, src_y, src_z);
-    glm::vec3 velocity = glm::vec3(0.0f, 0, 0);
-    glm::vec3 rewind_point = glm::vec3(src_x, src_y, src_z);
-    glm::vec3 rewind_vel = velocity;
-};
+
+
+
 source Source;
 
-struct Cuboid_dimensions
-{
-    float width = 0.0f;
-    float height = 0.0f;
-    float depth = 0.0f;
-    float x_offset = 0.0f;
-    float y_offset = 0.0f;
-    float z_offset = 0.0f;
-};
+
 Cuboid_dimensions Cube{
     20.0f, 6.0f, 15.0f, // width, height, depth
     0.0f, 0.0f, 0.0f    // x/y/z offset
@@ -282,18 +222,8 @@ Cuboid_dimensions Obstacle{
     500.0f, 1.0f, 50.0f // x/y/z offset
 };
 
-// MIKROFON
-struct Micophone
-{
-    float mic_x = 4;
-    float mic_y = 0.0;
-    float mic_z = 0.0;
-    // glm::vec3 starting_point = glm::vec3(mic_x, mic_y, mic_z);
-    glm::vec3 mic_velocity = glm::vec3(20.0f, 000.0f, 0.0f);
-    glm::vec3 rewind_point = glm::vec3(mic_x, mic_y, mic_z);
-    glm::vec3 rewind_vel = mic_velocity;
-};
-Micophone Mic;
+
+Microphone Mic;
 
 // #include <cstdlib> // wymagane dla exit()
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
@@ -698,209 +628,7 @@ static int midpoint_index(int i0, int i1,
     return idx;
 }
 
-void updatePhysics(float dt, struct Cuboid_dimensions Pool, struct Cuboid_dimensions temp_Obstacle) // glowna petla fizyki programu
-{
-    const float Pool_halfW = 0.5f * Pool.width;
-    const float Pool_halfH = 0.5f * Pool.height;
-    const float Pool_halfD = 0.5f * Pool.depth;
 
-    const float e = 0.8;      // wsp. spr�ysto�ci
-    const float eps = 0.001f; // minimalne odsuni�cie od �ciany
-
-    const float micR = mic_radius;
-    ++gFrameId;
-    // Pomocnik do odbicia
-    auto bounce1D = [&](float &pos, float &vel, float minb, float maxb) -> int
-    {
-        if (pos < minb)
-        {
-            pos = minb + eps; // wyci�gnij ze sciany
-            vel = -vel;       // odbij
-            return -1;
-        }
-        else if (pos > maxb)
-        {
-            pos = maxb - eps;
-            vel = -vel;
-            return +1;
-        }
-        return 0;
-    };
-
-    auto bounceObstacleMic = [&](struct Micophone &temp_Mic, struct Cuboid_dimensions temp_Obstacle) // TO DO:: narazie nie dziala, do odbic od przeszkody
-    {
-        const float temp_Obstacle_halfW = 0.5f * temp_Obstacle.width;
-        const float temp_Obstacle_halfH = 0.5f * temp_Obstacle.height;
-        const float temp_Obstacle_halfD = 0.5f * temp_Obstacle.depth;
-
-        if (temp_Obstacle_halfW + temp_Obstacle.x_offset >= 0)
-        {
-            if (temp_Mic.mic_x > -temp_Obstacle_halfW + temp_Obstacle.x_offset && temp_Mic.mic_x < temp_Obstacle_halfW + temp_Obstacle.x_offset)
-            {
-                temp_Mic.mic_velocity.x *= -1;
-            }
-        }
-        else
-        {
-            if (temp_Mic.mic_x < -temp_Obstacle_halfW + temp_Obstacle.x_offset && temp_Mic.mic_x > temp_Obstacle_halfW + temp_Obstacle.x_offset)
-            {
-                temp_Mic.mic_velocity.x *= -1;
-            }
-        }
-
-        if (temp_Obstacle_halfH + temp_Obstacle.y_offset >= 0)
-        {
-            if (temp_Mic.mic_y > -temp_Obstacle_halfH + temp_Obstacle.y_offset && temp_Mic.mic_y < temp_Obstacle_halfH + temp_Obstacle.y_offset)
-            {
-                temp_Mic.mic_velocity.y *= -1;
-            }
-        }
-        else
-        {
-            if (temp_Mic.mic_y < -temp_Obstacle_halfH + temp_Obstacle.y_offset && temp_Mic.mic_y > temp_Obstacle_halfH + temp_Obstacle.y_offset)
-            {
-                temp_Mic.mic_velocity.y *= -1;
-            }
-        }
-
-        if (temp_Obstacle_halfD + temp_Obstacle.z_offset >= 0)
-        {
-            if (temp_Mic.mic_z > -temp_Obstacle_halfD + temp_Obstacle.z_offset && temp_Mic.mic_z < temp_Obstacle_halfD + temp_Obstacle.z_offset)
-            {
-                temp_Mic.mic_velocity.z *= -1;
-            }
-        }
-        else
-        {
-            if (temp_Mic.mic_z < -temp_Obstacle_halfD + temp_Obstacle.z_offset && temp_Mic.mic_z > temp_Obstacle_halfD + temp_Obstacle.z_offset)
-            {
-                temp_Mic.mic_velocity.z *= -1;
-            }
-        }
-    };
-
-    auto bounceObstacleWave = [&](node &temp_node, struct Cuboid_dimensions temp_Obstacle) // TODO:: narazie nie dziala, do odbic od przeszkody
-    {
-        const float temp_Obstacle_halfW = 0.5f * temp_Obstacle.width;
-        const float temp_Obstacle_halfH = 0.5f * temp_Obstacle.height;
-        const float temp_Obstacle_halfD = 0.5f * temp_Obstacle.depth;
-
-        if ((temp_node.position.x > -temp_Obstacle_halfW + temp_Obstacle.x_offset && temp_node.position.y > -temp_Obstacle_halfH + temp_Obstacle.y_offset && temp_node.position.z > -temp_Obstacle_halfD + temp_Obstacle.z_offset) &&
-            (temp_node.position.x < temp_Obstacle_halfW + temp_Obstacle.x_offset && temp_node.position.y < temp_Obstacle_halfH + temp_Obstacle.y_offset && temp_node.position.z < temp_Obstacle_halfD + temp_Obstacle.z_offset))
-        {
-            // std::cout << "KOLIZJA Z FALA" << std::endl;
-            if (temp_node.position.x - 5 * eps < -temp_Obstacle_halfW + temp_Obstacle.x_offset || temp_node.position.x + 5 * eps > temp_Obstacle_halfW + temp_Obstacle.x_offset)
-            {
-                temp_node.velocity.x *= -1;
-            }
-            else if (temp_node.position.y - 5 * eps < -temp_Obstacle_halfH + temp_Obstacle.y_offset || temp_node.position.y + 5 * eps > temp_Obstacle_halfH + temp_Obstacle.y_offset)
-            {
-                temp_node.velocity.y *= -1;
-            }
-            else if (temp_node.position.z - 5 * eps < -temp_Obstacle_halfD + temp_Obstacle.z_offset || temp_node.position.z + 5 * eps > temp_Obstacle_halfD + temp_Obstacle.z_offset)
-            {
-                temp_node.velocity.z *= -1;
-            }
-        }
-    };
-
-    // odbicie mikrofonu
-    Mic.mic_x += Mic.mic_velocity.x * dt;
-    Mic.mic_y += Mic.mic_velocity.y * dt;
-    Mic.mic_z += Mic.mic_velocity.z * dt;
-
-    Source.src_x += Source.velocity.x * dt;
-    Source.src_y += Source.velocity.y * dt;
-    Source.src_z += Source.velocity.z * dt;
-
-    // Odbicia mikrofonu od �cian basenu
-    bounce1D(Mic.mic_x, Mic.mic_velocity.x, -Pool_halfW + Pool.x_offset + micR, Pool_halfW + Pool.x_offset - micR);
-    bounce1D(Mic.mic_y, Mic.mic_velocity.y, -Pool_halfH + Pool.y_offset + micR, Pool_halfH + Pool.y_offset - micR);
-    bounce1D(Mic.mic_z, Mic.mic_velocity.z, -Pool_halfD + Pool.z_offset + micR, Pool_halfD + Pool.z_offset - micR);
-
-    // odbicia zrodla od scian
-    bounce1D(Source.src_x, Source.velocity.x, -Pool_halfW + Pool.x_offset, Pool_halfW + Pool.x_offset);
-    bounce1D(Source.src_y, Source.velocity.y, -Pool_halfH + Pool.y_offset, Pool_halfH + Pool.y_offset);
-    bounce1D(Source.src_z, Source.velocity.z, -Pool_halfD + Pool.z_offset, Pool_halfD + Pool.z_offset);
-
-    // odbicia od przeszkody (MIKROFON)
-    // bounceObstacleMic(Mic, temp_Obstacle);
-
-    // doKill = (glfwGetTime() >= 8.0);
-    // odbicia fali od scian
-    for (int i = 0; i < (int)nodes.size(); ++i)
-    {
-        auto &p = nodes[i].position;
-        auto &v = nodes[i].velocity;
-        auto &energy = nodes[i].energy;
-
-        // nowe pozycje
-        p += v * dt;
-
-        // Odbicia w XYZ
-        // --- w p�tli po node'ach ---
-        bool bouncedAny = false;
-
-        // --- Odbicie X: t�umienie 0.5 ---
-        int sideX = bounce1D(p.x, v.x,
-                             -Pool_halfW + Pool.x_offset,
-                             Pool_halfW + Pool.x_offset);
-        if (sideX != 0)
-        {
-            bouncedAny = true;
-            energy *= 0.5f;
-        }
-
-        // --- Odbicie Y: d� 0.5, G�RA 0.3 ---
-        int sideY = bounce1D(p.y, v.y,
-                             -Pool_halfH + Pool.y_offset,
-                             Pool_halfH + Pool.y_offset);
-        if (sideY != 0)
-        {
-            bouncedAny = true;
-
-            if (sideY > 0)
-            {
-                // g�rna �ciana basenu (y = maxb)
-                energy *= 0.3f;
-            }
-            else
-            {
-                // dolna �ciana
-                energy *= 0.5f;
-            }
-        }
-
-        // --- Odbicie Z: t�umienie 0.5 ---
-        int sideZ = bounce1D(p.z, v.z,
-                             -Pool_halfD + Pool.z_offset,
-                             Pool_halfD + Pool.z_offset);
-        if (sideZ != 0)
-        {
-            bouncedAny = true;
-            energy *= 0.5f;
-        }
-    }
-    // if (doKill) doKill = false;
-    // dodaj czas
-    time_passed += dt;
-    // std::cout << "Czas propagacji danej ramki:" << " " << time_passed << std::endl;
-    if (time_passed * 1000 >= window_ms)
-    {
-        // true = false;
-    }
-
-    if (time_passed / dt >= (window_ms / 1000.0f) / dt && rewind_punkt)
-    {
-        Mic.rewind_point = glm::vec3(Mic.mic_x, Mic.mic_y, Mic.mic_z);
-        Mic.rewind_vel = Mic.mic_velocity;
-        Source.rewind_point = glm::vec3(Source.src_x, Source.src_y, Source.src_z);
-        Source.rewind_vel = Source.velocity;
-        rewind_punkt = false;
-    }
-
-    // rewind_punkt = false;
-}
 
 float calculateTriangleArea(int a, int b, int c)
 {

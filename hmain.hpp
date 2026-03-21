@@ -21,5 +21,8 @@
 #include "libraries/imgui-master/imgui_impl_opengl3.h"
 #include "libraries/imgui-master/imgui_impl_opengl3_loader.h"
 
+#include "datatypes.hpp"
+#include "wave.hpp"
+#include "microphone.hpp"
 #include "physics.hpp"
 #include "render.hpp"
