@@ -22,9 +22,9 @@
 #include "libraries/imgui-master/imgui_impl_opengl3.h"
 #include "libraries/imgui-master/imgui_impl_opengl3_loader.h"
 
-inline bool rewind_punkt = false;
-
 #include "datatypes.hpp"
+#include "globals.hpp"
+#include "geometry.hpp"
 #include "wave.hpp"
 #include "microphone.hpp"
 #include "physics.hpp"
