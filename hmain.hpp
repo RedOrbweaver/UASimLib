@@ -17,10 +17,10 @@
 #include <iomanip>
 #include <sstream>
 #include <cctype>
-#include "libraries/imgui-master/imgui.h"
-#include "libraries/imgui-master/imgui_impl_glfw.h"
-#include "libraries/imgui-master/imgui_impl_opengl3.h"
-#include "libraries/imgui-master/imgui_impl_opengl3_loader.h"
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_opengl3.h"
+#include "imgui/backends/imgui_impl_opengl3_loader.h"
 
 #include "datatypes.hpp"
 #include "constants.hpp"
