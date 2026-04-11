@@ -501,6 +501,8 @@ void DrawGUI()
 
     ImGui::Begin("Performance");
 
+    ImGui::Text("Time passed: %f", time_passed);
+
     ImGui::Text("Last frame time: %f", last_frame_time);
     ImGui::Text("Last render time: %f", last_render_time);
     ImGui::Text("Last physics time: %f", last_physics_time);
@@ -562,15 +564,7 @@ int main()
         std::cout << "CSV: wczytano " << tSec.size()
                   << " wierszy" << std::endl;
     }
-    // beginNextWindow(); // uruchamiamy pierwsze okno 5 ms
-    // gAudio.window_ms = 5.0f;   // trzymamy 5 ms
-
-    // to pod tym dodane do VBO
-    // if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-    //     std::cerr << "GLAD fail\n"; return -1;
-    // }
-    // std::cout << "GL " << GLVersion.major << "." << GLVersion.minor << "\n";
-    // glEnable(GL_DEPTH_TEST);
+    
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
@@ -669,6 +663,17 @@ int main()
 
             last_vertices_per_second = vertex_times[vertex_times_index] = (double)current_wave.nodes.size() / last_physics_time;
             vertex_times_index = (vertex_times_index+1) % VERTICES_PER_SEC_KEPT;
+
+            time_passed += dt;
+
+            if (time_passed / dt >= (window_ms / 1000.0f) / dt && rewind_punkt)
+            {
+                Mic.rewind_point = glm::vec3(Mic.mic_x, Mic.mic_y, Mic.mic_z);
+                Mic.rewind_vel = Mic.mic_velocity;
+                source.rewind_point = glm::vec3(source.src_x, source.src_y, source.src_z);
+                source.rewind_vel = source.velocity;
+                rewind_punkt = false;
+            }
         }
 
         
