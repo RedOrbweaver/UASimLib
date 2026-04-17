@@ -25,6 +25,8 @@ class Wave
     std::vector<WindowPacket> gWinPackets;
     int gWinIdx = 0;
 
+    shared_ptr<Red::ThreadPool> thread_pool;
+
 
     protected:
     size_t gRefineCursor = 0;
@@ -90,6 +92,7 @@ class Wave
         if (threadCount <= 0)
             threadCount = 1;
 
+
         // je�li siatka by�a resetowana
         if (gRefineCursor > triangles.size())
         {
@@ -116,12 +119,16 @@ class Wave
 
         threadCount = std::min<int>(threadCount, (int)N);
 
+        if(thread_pool == nullptr)
+            thread_pool = make_shared<Red::ThreadPool>(threadCount);
+
         // zbierz do podzia�u + kraw�dzie
         std::vector<std::vector<int>> tl_split(threadCount);
         std::vector<std::vector<Edge>> tl_edges(threadCount);
 
-        auto worker_scan = [&](int tid)
+        auto worker_scan = [&](std::any atid)
         {
+            int tid = std::any_cast<int>(atid);
             size_t chunk = (N + threadCount - 1) / threadCount;
             size_t i0 = start + tid * chunk;
             size_t i1 = std::min(end, i0 + chunk);
@@ -167,14 +174,24 @@ class Wave
                 }
             }
         };
+        
+        std::vector<std::shared_ptr<Red::ThreadPool::DispatchHandle>> handles = thread_pool->DispatchIndexed(worker_scan, threadCount);
+        
+        for(auto& h : handles)
+        {
+            h->Wait();
+            //printf("Handle %i competed\n", h->index);
+            Red::Assert(h->done);
+        }
+        
 
-        std::vector<std::thread> threads;
-        threads.reserve(threadCount);
-        for (int t = 0; t < threadCount; ++t)
-            threads.emplace_back(worker_scan, t);
-        for (auto &th : threads)
-            th.join();
-        threads.clear();
+        // std::vector<std::thread> threads;
+        // threads.reserve(threadCount);
+        // for (int t = 0; t < threadCount; ++t)
+        //     threads.emplace_back(worker_scan, t);
+        // for (auto &th : threads)
+        //     th.join();
+        // threads.clear();
 
         // scalenie wynik�w
         std::vector<int> splitIdx;
@@ -227,8 +244,9 @@ class Wave
         std::vector<std::vector<std::pair<int, Triangle>>> tl_replace(threadCount);
         std::vector<std::vector<Triangle>> tl_append(threadCount);
 
-        auto worker_build = [&](int tid)
+        auto worker_build = [&](std::any atid)
         {
+            int tid = std::any_cast<int>(atid);
             size_t M = splitIdx.size();
             size_t chunk = (M + threadCount - 1) / threadCount;
             size_t i0 = tid * chunk;
@@ -257,10 +275,18 @@ class Wave
             }
         };
 
-        for (int t = 0; t < threadCount; ++t)
-            threads.emplace_back(worker_build, t);
-        for (auto &th : threads)
-            th.join();
+        handles = thread_pool->DispatchIndexed(worker_build, threadCount);
+        for(auto& h : handles)
+        {
+            h->Wait();
+            //printf("Handle %i competed\n", h->index);
+            Assert(h->done);
+        }
+
+        // for (int t = 0; t < threadCount; ++t)
+        //     threads.emplace_back(worker_build, t);
+        // for (auto &th : threads)
+        //     th.join();
 
         // zapisz wynik do 'triangles' ---
         size_t toAppend = 0;

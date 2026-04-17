@@ -17,6 +17,8 @@ using std::make_shared;
 using std::vector;
 using std::unordered_map;
 
+#include "RedCppLib/RedCppLib.hpp"
+
 #include "datatypes.hpp"
 #include "UASimConstants.hpp"
 #include "geometry.hpp"
