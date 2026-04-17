@@ -1,5 +1,5 @@
 #pragma once
-#include "hmain.hpp"
+#include "UASimLib.hpp"
 
 // POMOCNICZE
 struct Edge
@@ -147,14 +147,14 @@ inline float dist2PointTriangle(const glm::vec3 &p,
     return std::min(d2ab, std::min(d2bc, d2ca));
 }
 
-inline float q5(float t)
+inline float q5(float dt, float t)
 {
     // double w srodku zmniejsza blad
     double buf = 1 / dt;
     return (float)(std::llround((double)t * buf) / buf);
 }
 
-inline float q5_inter(float t)
+inline float q5_inter(float inv_fp, float t)
 {
     // double w srodku zmniejsza blad
     double buf = 1 / inv_fp;

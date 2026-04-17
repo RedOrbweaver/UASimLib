@@ -1,5 +1,7 @@
 #pragma once
 
+#include "UASimLib.hpp"
+
 class Microphone
 {
     public:

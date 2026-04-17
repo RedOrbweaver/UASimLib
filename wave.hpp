@@ -1,5 +1,5 @@
 #pragma once
-#include "hmain.hpp"
+#include "UASimLib.hpp"
 
 
 
@@ -18,6 +18,13 @@ class Wave
     float gAvgEdgeLen = 0.0f;                     // siatka
     int gBlindRings = 9 * 3 * 9 * 27 * 9 * 9 * 9; // 3 tr�jk�ty
     float gBlindRadius = 0.0f;                    // = gBlindRings * gAvgEdgeLen
+
+    float inv_fp;
+    float dt;
+    int windows_number;
+    std::vector<WindowPacket> gWinPackets;
+    int gWinIdx = 0;
+
 
     protected:
     size_t gRefineCursor = 0;
@@ -351,8 +358,11 @@ class Wave
         gEdgeMidCache.clear();
         mesh_dirty = true;
     }
-    void Begin(const SoundSource& source, WindowPacket& packet, float radius = INITIAL_WAVE_RADIUS)
+    void Begin(const SoundSource& source, int index=-1, float radius = DEFAULT_INITIAL_WAVE_RADIUS)
     {
+        if (index != -1)
+            gWinIdx = index;
+        WindowPacket& packet = gWinPackets[gWinIdx];
                 // gestosc - ka�dy poziom �4 liczba tr�jk�t�w
         constexpr int SUBDIV = 2; // 2 optymalnie, wiecej laguje
         // 12 wierzcho�k�w  na sferze o promieniu 'radius'
@@ -446,8 +456,11 @@ class Wave
         gAvgEdgeLen = computeAvgEdgeLen(verts, faces);
         gBlindRadius = gBlindRings * gAvgEdgeLen;
     }
-    Wave()
+    Wave(float frequency, float delta_step, int windows, vector<WindowPacket> packets)
     {
-
+        inv_fp = frequency;
+        dt = delta_step;
+        windows_number = windows;
+        gWinPackets = packets;
     }
 };

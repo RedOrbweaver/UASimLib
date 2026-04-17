@@ -2,20 +2,20 @@
 
 
 // interpolacja liniowa  logMicHit na krok dt + kwantyzacja q5
-inline float flush_echo_interpolated(Microphone& Mic, const std::vector<std::pair<float, float>> &buf,
+inline float flush_echo_interpolated(Microphone& Mic, shared_ptr<Wave> wave, const std::vector<std::pair<float, float>> &buf,
                                      float TS_native, bool quantize = true)
 {
     if (buf.empty())
         return 0;
     if (buf.size() == 1)
     {
-        const float t0 = quantize ? q5_inter(buf[0].first) : buf[0].first;
+        const float t0 = quantize ? q5_inter(wave->inv_fp, buf[0].first) : buf[0].first;
         Mic.logMicHit(t0, buf[0].second);
         return 0;
     }
 
     const float EPS = TS_native * 1e-3;
-    const float STEP = inv_fp;       // rozdzielczo�� siatki (np. 1e-5)
+    const float STEP = wave->inv_fp;       // rozdzielczo�� siatki (np. 1e-5)
     const float DUP_E = 0.5f * STEP; // pr�g duplikatu
     const float GAP_E = 1.5f * STEP; // pr�g przeskoku o wi�cej ni� 1 tick
 
@@ -50,15 +50,15 @@ inline float flush_echo_interpolated(Microphone& Mic, const std::vector<std::pai
 
     for (float tg = t_start; tg <= t_end + 0.5f * TS_native; tg += TS_native)
     {
-        tg = q5_inter(tg);
+        tg = q5_inter(wave->inv_fp, tg);
         while (k + 1 < buf.size() && buf[k + 1].first < tg - EPS)
             ++k;
         if (k + 1 >= buf.size())
         {
             const float v_last = buf.back().second;
             const float t_raw = buf.back().first;
-            float t_q = quantize ? q5_inter(t_raw) : t_raw;
-            t_q = q5_inter(snap_guard(t_q));
+            float t_q = quantize ? q5_inter(wave->inv_fp, t_raw) : t_raw;
+            t_q = q5_inter(wave->inv_fp, snap_guard(t_q));
 
             Mic.logMicHit(t_q, v_last);
             poprzednie_t = t_q;
@@ -83,9 +83,9 @@ inline float flush_echo_interpolated(Microphone& Mic, const std::vector<std::pai
         }
 
         // proponowany znacznik czasu
-        float t_prop = quantize ? q5_inter(tg) : tg;
+        float t_prop = quantize ? q5_inter(wave->inv_fp, tg) : tg;
 
-        float t = q5_inter(snap_guard(t_prop));
+        float t = q5_inter(wave->inv_fp, snap_guard(t_prop));
 
         Mic.logMicHit(t, v);
         poprzednie_t = t;
@@ -153,57 +153,12 @@ inline int pick_prev_hit(const EchoHit &cur,
     return best;
 }
 
-inline bool touchesMicrophone(Microphone& Mic, Wave& wave, int nodeIndex)
+inline bool touchesMicrophonePoint(float dt, Microphone& Mic, shared_ptr<Wave> wave, int nodeIndex)
 {
     const glm::vec3 center(Mic.mic_x, Mic.mic_y, Mic.mic_z);
-    const float r = Mic.radius;
-    const float r2 = r * r;
+    const glm::vec3 &pNode = wave->nodes[nodeIndex].position;
 
-    const glm::vec3 &p = wave.nodes[nodeIndex].position;
-    glm::vec3 d = p - center;
-    float dist2 = glm::dot(d, d);
-
-    // if (dist2 <= r2) return true;
-
-    float maxExtra = wave.gAvgEdgeLen * 1.5f;
-    float farR2 = (maxExtra) * (maxExtra);
-    if (dist2 > farR2)
-    {
-        return false;
-    }
-
-    for (const auto &tri : wave.triangles)
-    {
-        if (tri.indices[0] != nodeIndex &&
-            tri.indices[1] != nodeIndex &&
-            tri.indices[2] != nodeIndex)
-            continue;
-
-        const glm::vec3 &a = wave.nodes[tri.indices[0]].position;
-        const glm::vec3 &b = wave.nodes[tri.indices[1]].position;
-        const glm::vec3 &c = wave.nodes[tri.indices[2]].position;
-
-        float d2Tri = dist2PointTriangle(center, a, b, c);
-        if (d2Tri <= (1440 * dt) * 1440 * dt)
-        {
-            int siemka2 = 5;
-        }
-        d2Tri = dist2PointTriangle(center, a, b, c);
-        if (d2Tri <= (1440 * dt) * 1440 * dt)
-        {
-            return true;
-        }
-    }
-
-    return false;
-} // czy fala dotyka mikrofonu
-
-inline bool touchesMicrophonePoint(Microphone& Mic, Wave& wave, int nodeIndex)
-{
-    const glm::vec3 center(Mic.mic_x, Mic.mic_y, Mic.mic_z);
-    const glm::vec3 &pNode = wave.nodes[nodeIndex].position;
-
-    float maxExtra = wave.gAvgEdgeLen * 1.5f;
+    float maxExtra = wave->gAvgEdgeLen * 1.5f;
     float farR2 = 1440 * dt * 10;
     float buf = glm::length(pNode - center);
     if (buf > farR2)
@@ -215,18 +170,18 @@ inline bool touchesMicrophonePoint(Microphone& Mic, Wave& wave, int nodeIndex)
     const float maxAdvance = (soundSpeed * dt) * 1.5;
 
     // kierunek propagacji z pr�dko�ci noda
-    glm::vec3 n_prop = glm::normalize(wave.nodes[nodeIndex].velocity);
+    glm::vec3 n_prop = glm::normalize(wave->nodes[nodeIndex].velocity);
 
-    for (const auto &tri : wave.triangles)
+    for (const auto &tri : wave->triangles)
     {
         if (tri.indices[0] != nodeIndex &&
             tri.indices[1] != nodeIndex &&
             tri.indices[2] != nodeIndex)
             continue;
 
-        const glm::vec3 &a = wave.nodes[tri.indices[0]].position;
-        const glm::vec3 &b = wave.nodes[tri.indices[1]].position;
-        const glm::vec3 &c = wave.nodes[tri.indices[2]].position;
+        const glm::vec3 &a = wave->nodes[tri.indices[0]].position;
+        const glm::vec3 &b = wave->nodes[tri.indices[1]].position;
+        const glm::vec3 &c = wave->nodes[tri.indices[2]].position;
 
         // normalna geometryczna
         glm::vec3 ab = b - a;
@@ -280,7 +235,7 @@ inline bool touchesMicrophonePoint(Microphone& Mic, Wave& wave, int nodeIndex)
     return false;
 }
 
-inline void retime_echo(std::vector<std::pair<float, float>> &buf, float newEnd, float prevE, float currE)
+inline void retime_echo(shared_ptr<Wave> wave, std::vector<std::pair<float, float>> &buf, float newEnd, float prevE, float currE)
 {
     if (buf.size() < 2)
     {
@@ -306,9 +261,9 @@ inline void retime_echo(std::vector<std::pair<float, float>> &buf, float newEnd,
         j++;
     }
 
-    float invAmpPrev = gWinPackets[gWinIdx - 1].amplitude / prevE;
-    float PrevAmp = prevE / gWinPackets[gWinIdx - 1].amplitude;
-    float newAmpS = currE / gWinPackets[gWinIdx].amplitude;
+    float invAmpPrev = wave->gWinPackets[wave->gWinIdx - 1].amplitude / prevE;
+    float PrevAmp = prevE / wave->gWinPackets[wave->gWinIdx - 1].amplitude;
+    float newAmpS = currE / wave->gWinPackets[wave->gWinIdx].amplitude;
     newAmpS = (PrevAmp - newAmpS) / buf.size();
     int i = 0;
     for (auto &p : buf)
@@ -337,7 +292,8 @@ inline int bounce1D(float &pos, float &vel, float minb, float maxb)
     return 0;
 };
 
-inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wave, SoundSource& source, Microphone& Mic, struct Cuboid_dimensions Pool, struct Cuboid_dimensions temp_Obstacle) // glowna petla fizyki programu
+inline void updatePhysics(float dt, float window_ms, float time_passed, shared_ptr<Wave> wave, SoundSource& source, Microphone& Mic, 
+    struct Cuboid_dimensions Pool, struct Cuboid_dimensions temp_Obstacle) // glowna petla fizyki programu
 {
     const float Pool_halfW = 0.5f * Pool.width;
     const float Pool_halfH = 0.5f * Pool.height;
@@ -371,11 +327,11 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wa
     bounce1D(source.src_z, source.velocity.z, -Pool_halfD + Pool.z_offset, Pool_halfD + Pool.z_offset);
 
     // odbicia fali od scian
-    for (int i = 0; i < (int)wave.nodes.size(); ++i)
+    for (int i = 0; i < (int)wave->nodes.size(); ++i)
     {
-        auto &p = wave.nodes[i].position;
-        auto &v = wave.nodes[i].velocity;
-        auto &energy = wave.nodes[i].energy;
+        auto &p = wave->nodes[i].position;
+        auto &v = wave->nodes[i].velocity;
+        auto &energy = wave->nodes[i].energy;
 
         // nowe pozycje
         p += v * dt;
@@ -424,45 +380,45 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wa
             energy *= 0.5f;
         }
         bool hitMic = false;
-        hitMic = touchesMicrophonePoint(Mic, wave, (int)i);
-        //glm::vec3 buf = wave.nodes[i].position - glm::vec3(Mic.mic_x, Mic.mic_y, Mic.mic_z);
+        hitMic = touchesMicrophonePoint(dt, Mic, wave, (int)i);
+        //glm::vec3 buf = wave->nodes[i].position - glm::vec3(Mic.mic_x, Mic.mic_y, Mic.mic_z);
         if (hitMic)
         {
-            float p = wave.nodes[i].energy;
+            float p = wave->nodes[i].energy;
             float r = time_passed * SOUND_V;
-            float E = std::abs(wave.nodes[i].energy);
+            float E = std::abs(wave->nodes[i].energy);
             if (r > 1)
                 E = p / (r);
 
-            float win_s = window_ms / 1000.0f - (gWinPackets[gWinIdx].times[1] - gWinPackets[gWinIdx].times[0]); // 0.005s w teorii w praktyce lekko mniej niz 0.005s zeby nie brac dwa razy tej samej probki
-            float T = gWinPackets[gWinIdx].tEmit + time_passed;                                                  // czas przyjscia pocz�tku okna
-            const int wid = gWinIdx;
+            float win_s = window_ms / 1000.0f - (wave->gWinPackets[wave->gWinIdx].times[1] - wave->gWinPackets[wave->gWinIdx].times[0]); // 0.005s w teorii w praktyce lekko mniej niz 0.005s zeby nie brac dwa razy tej samej probki
+            float T = wave->gWinPackets[wave->gWinIdx].tEmit + time_passed;                                                  // czas przyjscia pocz�tku okna
+            const int wid = wave->gWinIdx;
             // Je�eli ten node jest czasowo st�umiony nie loguj do CSV
-            if (T <= wave.nodes[i].suppressUntilT)
+            if (T <= wave->nodes[i].suppressUntilT)
             {
                 continue;
             }
 
             ktore_odbicie++;
             // DOPPLER (rozci�gni�cie/�ci�ni�cie osi czasu okna)
-            const glm::vec3 n_hat = glm::normalize(wave.nodes[i].velocity);
+            const glm::vec3 n_hat = glm::normalize(wave->nodes[i].velocity);
             const float v_mic_proj = glm::dot(Mic.mic_velocity, n_hat);
-            float vel_test = glm::length(wave.nodes[i].velocity);
+            float vel_test = glm::length(wave->nodes[i].velocity);
             // CECHY echa
             if (r > 1)
-                wave.nodes[i].energy = p / (r);
+                wave->nodes[i].energy = p / (r);
             EchoHit curHit;
             curHit.T = T; //  T z bie��cej ramki
-            curHit.energy = std::fabs(wave.nodes[i].energy);
-            curHit.bounces = wave.nodes[i].bounces;
-            curHit.doppler = wave.nodes[i].doppler;
-            curHit.dir_in = glm::normalize(wave.nodes[i].velocity);
+            curHit.energy = std::fabs(wave->nodes[i].energy);
+            curHit.bounces = wave->nodes[i].bounces;
+            curHit.doppler = wave->nodes[i].doppler;
+            curHit.dir_in = glm::normalize(wave->nodes[i].velocity);
             int test = -1;
 
             const glm::vec3 micC(Mic.mic_x, Mic.mic_y, Mic.mic_z);
 
             // Proba dopasowania okna do poprzedniego echa
-            if (gWinIdx != 0 && !Mic.gPrevHits.empty())
+            if (wave->gWinIdx != 0 && !Mic.gPrevHits.empty())
             {
                 int match = pick_prev_hit(curHit, Mic.gPrevHits, Mic.gPrevTaken, dt);
                 Mic.matches.push_back(match);
@@ -473,15 +429,15 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wa
                     //   przeskaluj ca�y bufor poprzedniego okna: stare T2_prev -> nowe T
                     if (match < (int)Mic.wektorPrev.size() && !Mic.wektorPrev[match].empty())
                     {
-                        retime_echo(Mic.wektorPrev[match], /*newEnd=*/T, Mic.gPrevHits[match].energy, wave.nodes[i].energy);
+                        retime_echo(wave, Mic.wektorPrev[match], /*newEnd=*/T, Mic.gPrevHits[match].energy, wave->nodes[i].energy);
                         // interpolacja -> Mic csv
-                        float new_T = flush_echo_interpolated(Mic, Mic.wektorPrev[match], /*TS_native=*/inv_fp, /*quantize=*/true);
+                        float new_T = flush_echo_interpolated(Mic, wave, Mic.wektorPrev[match], /*TS_native=*/wave->inv_fp, /*quantize=*/true);
                         Mic.wektorPrev[match].clear();
                     }
                 }
             }
             // T2 liczymy dopiero po korekcie czasu T
-            float T2 = T + win_s * wave.nodes[i].doppler * ((1) / (vel_test - v_mic_proj));
+            float T2 = T + win_s * wave->nodes[i].doppler * ((1) / (vel_test - v_mic_proj));
             curHit.T2 = T2;
             Mic.gCurrHits.push_back(curHit);
 
@@ -490,12 +446,12 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wa
                 scale = 1e-4f;
 
             // Logowanie pe�nego okna 5 ms (czas + warto�ci)
-            if (wid >= 0 && wid < (int)gWinPackets.size())
+            if (wid >= 0 && wid < (int)wave->gWinPackets.size())
             {
-                const auto &wp = gWinPackets[wid];
+                const auto &wp = wave->gWinPackets[wid];
                 const float Awin = (wp.amplitude != 0.0f) ? wp.amplitude : 1e-12f;
                 // --- sta�e do amplitudy
-                const float scaleAmp = std::fabs(wave.nodes[i].energy / Awin);
+                const float scaleAmp = std::fabs(wave->nodes[i].energy / Awin);
 
                 // BUFOR: (t_abs, val) dla wszystkich pr�bek okna
                 std::vector<std::pair<float, float>> tmp;
@@ -507,7 +463,7 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wa
                     float t_abs = T + scale * wp.times[j];
 
                     float val = (wp.values[j]) * scaleAmp;
-                    if (gWinIdx == gWinPackets.size() - 1)
+                    if (wave->gWinIdx == wave->gWinPackets.size() - 1)
                         val = val;
 
                     tmp.emplace_back(t_abs, val);
@@ -520,9 +476,9 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wa
                         { return a.first < b.first; });
 
                 // INTERPOLACJA do kroku tego okna
-                if (gWinIdx == windows_number - 1)
+                if (wave->gWinIdx == wave->windows_number - 1)
                 {
-                    flush_echo_interpolated(Mic, tmp, /*TS_native=*/inv_fp, /*quantize=*/true);
+                    flush_echo_interpolated(Mic, wave, tmp, /*TS_native=*/wave->inv_fp, /*quantize=*/true);
                 }
             }
 
@@ -531,39 +487,39 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, Wave& wa
             const float blind_until = T + 0.00005f;
 
             // parametry filtr�w klastra
-            const glm::vec3 center = wave.nodes[i].position; // pozycja trafionego noda
+            const glm::vec3 center = wave->nodes[i].position; // pozycja trafionego noda
             // const glm::vec3 micC = glm::vec3(Mic.mic_x, Mic.mic_y, Mic.mic_z);
             const float cosMax = std::cos(glm::radians(20.0f));          // max r�nica kierunku
-            const float s_i = glm::dot(micC - wave.nodes[i].position, n_hat); // proxy czasu doj�cia
+            const float s_i = glm::dot(micC - wave->nodes[i].position, n_hat); // proxy czasu doj�cia
 
-            for (size_t j = 0; j < wave.nodes.size(); ++j)
+            for (size_t j = 0; j < wave->nodes.size(); ++j)
             {
                 if (j == i)
                     continue;
 
                 // To samo okno emisji (to samo czo�o czasowo)
-                if (gWinIdx != wid)
+                if (wave->gWinIdx != wid)
                     continue;
 
                 // Zgodny kierunek propagacji (wyklucz inne odbicia)
-                const glm::vec3 nj_hat = glm::normalize(wave.nodes[j].velocity);
+                const glm::vec3 nj_hat = glm::normalize(wave->nodes[j].velocity);
                 if (glm::dot(n_hat, nj_hat) < cosMax)
                     continue;
 
                 // Node musi zbli�a� si� do mikrofonu
-                const float s_j = glm::dot(micC - wave.nodes[j].position, nj_hat);
+                const float s_j = glm::dot(micC - wave->nodes[j].position, nj_hat);
                 // if (s_j <= 0.0f) continue;
 
                 // Zbli�ony przewidywany czas doj�cia
-                if (std::fabs(s_j - s_i) > 1.5f * wave.gBlindRadius)
+                if (std::fabs(s_j - s_i) > 1.5f * wave->gBlindRadius)
                     continue;
 
                 // Blisko w przestrzeni (ok. �3 tr�jk�ty�)
-                if (glm::length(wave.nodes[j].position - center) > wave.gBlindRadius)
+                if (glm::length(wave->nodes[j].position - center) > wave->gBlindRadius)
                     continue;
 
                 
-                wave.nodes[j].suppressUntilT = std::max(wave.nodes[j].suppressUntilT, blind_until);
+                wave->nodes[j].suppressUntilT = std::max(wave->nodes[j].suppressUntilT, blind_until);
             }
 
             std::cout << "win=" << wid << "  T=" << T << " " << ktore_odbicie << " " << "T2=" << T2 << "\n";
