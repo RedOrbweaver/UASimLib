@@ -1,6 +1,0 @@
-{
-    "files.associations": {
-        "*.tpp": "cpp"
-    },
-    "cmake.sourceDirectory": "/home/user/Projects/OldUnderwaterAcoustics/libraries/dr_libs-master"
-}
