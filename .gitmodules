@@ -1,0 +1,3 @@
+[submodule "RedCppLib"]
+	path = RedCppLib
+	url = https://github.com/RedOrbweaver/RedCppLib
