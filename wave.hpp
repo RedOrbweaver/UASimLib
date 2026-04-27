@@ -8,9 +8,9 @@ class Wave
     private:
     protected:
     public:
-    std::vector<node> nodes;
-    std::vector<node> mic_nodes;
-    std::vector<node> src_nodes;
+    std::vector<ray> nodes;
+    std::vector<ray> mic_nodes;
+    std::vector<ray> src_nodes;
     std::vector<Triangle> triangles;
     std::unordered_map<uint64_t, int> gEdgeMidCache; // edge -> midpoint
     bool mesh_dirty = true;
@@ -35,22 +35,22 @@ class Wave
 
     int addMidpoint(int a, int b)
     {
-        node midpoint;
+        ray midpoint;
         midpoint.position = (nodes[a].position + nodes[b].position) * 0.5f;
 
         midpoint.energy = (nodes[a].energy + nodes[b].energy) * 0.5f;
         midpoint.tEmit = (nodes[a].tEmit + nodes[b].tEmit) * 0.5f;
         // midpoint.srcVel = (nodes[a].srcVel + nodes[b].srcVel) * 0.5f;
         midpoint.velocity = (nodes[a].velocity + nodes[b].velocity) * 0.5f;
-        midpoint.velocity = glm::normalize(midpoint.velocity) * SOUND_V;
+        midpoint.velocity = vec3f::normalized(midpoint.velocity) * SOUND_V;
 
-        // midpoint.srcVel = glm::normalize(midpoint.srcVel) * glm::length(nodes[a].srcVel);
+        // midpoint.srcVel = vec3f::normalized(midpoint.srcVel) * vec3f::length(nodes[a].srcVel);
         midpoint.bounces = nodes[a].bounces;
         midpoint.suppressUntilT = (nodes[a].suppressUntilT + nodes[b].suppressUntilT) * 0.5f;
         // midpoint.path = (nodes[a].path + nodes[b].path) * 0.5f;
         // midpoint.velocity = (nodes[a].velocity + nodes[b].velocity) * 0.5f;
         // midpoint.nEmit = (nodes[a].nEmit + nodes[b].nEmit) * 0.5f;
-        // midpoint.nEmit = glm::normalize(midpoint.nEmit) * glm::length(nodes[a].nEmit);
+        // midpoint.nEmit = vec3f::normalized(midpoint.nEmit) * vec3f::length(nodes[a].nEmit);
 
         midpoint.doppler = (nodes[a].doppler + nodes[b].doppler) * 0.5f;
         nodes.push_back(midpoint);
@@ -142,9 +142,9 @@ class Wave
                 Triangle t = triangles[i]; // kopiuj
                 int a = t.indices[0], b = t.indices[1], c = t.indices[2];
 
-                const glm::vec3 &pa = nodes[a].position;
-                const glm::vec3 &pb = nodes[b].position;
-                const glm::vec3 &pc = nodes[c].position;
+                const vec3f &pa = nodes[a].position;
+                const vec3f &pb = nodes[b].position;
+                const vec3f &pc = nodes[c].position;
 
                 const bool nearWall =
                     (std::fabs(pa.x) > cuboidHalfWidth - safetyMargin) ||
@@ -160,10 +160,10 @@ class Wave
                 if (nearWall)
                     continue;
 
-                const glm::vec3 ab = pb - pa;
-                const glm::vec3 ac = pc - pa;
-                const glm::vec3 cr = glm::cross(ab, ac);
-                const float cr2 = glm::dot(cr, cr);
+                const vec3f ab = pb - pa;
+                const vec3f ac = pc - pa;
+                const vec3f cr = vec3f::cross(ab, ac);
+                const float cr2 = vec3f::dot(cr, cr);
 
                 if (cr2 > area2_threshold)
                 {
@@ -326,7 +326,7 @@ class Wave
         const size_t N = nodes.size();
 
         std::vector<int> remap(N, -1);
-        std::vector<node> kept;
+        std::vector<ray> kept;
         kept.reserve(N);
 
         int test = 0;
@@ -344,7 +344,7 @@ class Wave
             if (EnergyEnough)
             {
                 remap[i] = (int)kept.size();
-                node cp = nodes[i];
+                ray cp = nodes[i];
                 kept.push_back(cp);
             }
         }
@@ -393,30 +393,30 @@ class Wave
         constexpr int SUBDIV = 2; // 2 optymalnie, wiecej laguje
         // 12 wierzcho�k�w  na sferze o promieniu 'radius'
         const float t = (1.0f + std::sqrt(5.0f)) * 0.5f; // z�ota proporcja
-        std::vector<glm::vec3> verts = {
-            glm::normalize(glm::vec3(-1, t, 0)),
-            glm::normalize(glm::vec3(1, t, 0)),
-            glm::normalize(glm::vec3(-1, -t, 0)),
-            glm::normalize(glm::vec3(1, -t, 0)),
+        std::vector<vec3f> verts = {
+            vec3f::normalized(vec3f{-1, t, 0}),
+            vec3f::normalized(vec3f{1, t, 0}),
+            vec3f::normalized(vec3f{-1, -t, 0}),
+            vec3f::normalized(vec3f{1, -t, 0}),
 
-            glm::normalize(glm::vec3(0, -1, t)),
-            glm::normalize(glm::vec3(0, 1, t)),
-            glm::normalize(glm::vec3(0, -1, -t)),
-            glm::normalize(glm::vec3(0, 1, -t)),
+            vec3f::normalized(vec3f{0, -1, t}),
+            vec3f::normalized(vec3f{0, 1, t}),
+            vec3f::normalized(vec3f{0, -1, -t}),
+            vec3f::normalized(vec3f{0, 1, -t}),
 
-            glm::normalize(glm::vec3(t, 0, -1)),
-            glm::normalize(glm::vec3(t, 0, 1)),
-            glm::normalize(glm::vec3(-t, 0, -1)),
-            glm::normalize(glm::vec3(-t, 0, 1)),
+            vec3f::normalized(vec3f{t, 0, -1}),
+            vec3f::normalized(vec3f{t, 0, 1}),
+            vec3f::normalized(vec3f{-t, 0, -1}),
+            vec3f::normalized(vec3f{-t, 0, 1}),
         };
         for (auto &v : verts)
             v *= radius; // na promie� 'radius'
 
         // 20 �cian
-        std::vector<glm::ivec3> faces = {
+        std::vector<vec3i> faces = {
             {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11}, {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8}, {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9}, {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}};
         /*
-        std::vector<glm::ivec3> faces = {
+        std::vector<vec3i> faces = {
             {0,11,5}, {0,5,1}, {0,1,7}, {0,7,10}, {0,10,11},
             {1,5,9},  {5,11,4}, {11,10,2}, {10,7,6}, {7,1,8},
             {3,9,4},  {3,4,2},  {3,2,6},  {3,6,8},  {3,8,9},
@@ -427,7 +427,7 @@ class Wave
         for (int s = 0; s < SUBDIV; ++s)
         {
             std::unordered_map<uint64_t, int> cache;
-            std::vector<glm::ivec3> new_faces;
+            std::vector<vec3i> new_faces;
             new_faces.reserve(faces.size() * 4);
 
             for (const auto &f : faces)
@@ -448,18 +448,18 @@ class Wave
         }
 
         nodes.reserve(verts.size());
-        glm::vec3 buf2 = glm::vec3(source.src_x, source.src_y, source.src_z);
-        glm::vec3 gSourceVel = source.velocity;
+        vec3f buf2 = vec3f{source.src_x, source.src_y, source.src_z};
+        vec3f gSourceVel = source.velocity;
         int i = 0;
         for (const auto &p : verts)
         {
-            node nd;
+            ray nd;
             nd.position = p;
-            // nd.nEmit = glm::normalize(p);
-            nd.velocity = glm::normalize(p) * SOUND_V; // sta�a pr�dko�� fali w wodzie
+            // nd.nEmit = vec3f::normalized(p);
+            nd.velocity = vec3f::normalized(p) * SOUND_V; // sta�a pr�dko�� fali w wodzie
 
             nd.position += buf2;
-            nd.doppler = glm::length(nd.velocity) + glm::length(source.velocity);
+            nd.doppler = vec3f::length(nd.velocity) + vec3f::length(source.velocity);
             // nd.srcVel = gSourceVel;
             // nd.energy = audioE;
             // nd.tEmit = (gWinIdx)*gAudio.window_ms / 1000.0f; // zapisz czas emisji (sim-time)

@@ -122,7 +122,7 @@ inline int pick_prev_hit(const EchoHit &cur,
             continue;
 
         // kierunek musi by� bliski
-        float cosang = glm::dot(glm::normalize(cur.dir_in), glm::normalize(pr.dir_in));
+        float cosang = vec3f::dot(vec3f::normalized(cur.dir_in), vec3f::normalized(pr.dir_in));
         if (cosang < cos_gate)
             continue;
 
@@ -155,12 +155,12 @@ inline int pick_prev_hit(const EchoHit &cur,
 
 inline bool touchesMicrophonePoint(float dt, Microphone& Mic, shared_ptr<Wave> wave, int nodeIndex)
 {
-    const glm::vec3 center(Mic.mic_x, Mic.mic_y, Mic.mic_z);
-    const glm::vec3 &pNode = wave->nodes[nodeIndex].position;
+    const vec3f center{Mic.mic_x, Mic.mic_y, Mic.mic_z};
+    const vec3f &pNode = wave->nodes[nodeIndex].position;
 
     float maxExtra = wave->gAvgEdgeLen * 1.5f;
     float farR2 = 1440 * dt * 10;
-    float buf = glm::length(pNode - center);
+    float buf = vec3f::length(pNode - center);
     if (buf > farR2)
     {
         return false;
@@ -170,7 +170,7 @@ inline bool touchesMicrophonePoint(float dt, Microphone& Mic, shared_ptr<Wave> w
     const float maxAdvance = (soundSpeed * dt) * 1.5;
 
     // kierunek propagacji z pr�dko�ci noda
-    glm::vec3 n_prop = glm::normalize(wave->nodes[nodeIndex].velocity);
+    vec3f n_prop = vec3f::normalized(wave->nodes[nodeIndex].velocity);
 
     for (const auto &tri : wave->triangles)
     {
@@ -179,44 +179,44 @@ inline bool touchesMicrophonePoint(float dt, Microphone& Mic, shared_ptr<Wave> w
             tri.indices[2] != nodeIndex)
             continue;
 
-        const glm::vec3 &a = wave->nodes[tri.indices[0]].position;
-        const glm::vec3 &b = wave->nodes[tri.indices[1]].position;
-        const glm::vec3 &c = wave->nodes[tri.indices[2]].position;
+        const vec3f &a = wave->nodes[tri.indices[0]].position;
+        const vec3f &b = wave->nodes[tri.indices[1]].position;
+        const vec3f &c = wave->nodes[tri.indices[2]].position;
 
         // normalna geometryczna
-        glm::vec3 ab = b - a;
-        glm::vec3 ac = c - a;
-        glm::vec3 n = glm::cross(ab, ac);
-        float n2 = glm::dot(n, n);
+        vec3f ab = b - a;
+        vec3f ac = c - a;
+        vec3f n = vec3f::cross(ab, ac);
+        float n2 = vec3f::dot(n, n);
         if (n2 < 1e-12f)
             continue; // zdegenerowany tr�jk�t
 
-        glm::vec3 n_hat = n / std::sqrt(n2);
+        vec3f n_hat = n / std::sqrt(n2);
 
         // dopasuj zwrot normalnej do kierunku propagacji
-        if (glm::dot(n_hat, n_prop) < 0.0f)
+        if (vec3f::dot(n_hat, n_prop) < 0.0f)
             n_hat = -n_hat;
 
         // distance od p�aszczyzny czo�a
-        float s = glm::dot(center - a, n_hat);
+        float s = vec3f::dot(center - a, n_hat);
 
         // mikrofon musi by� przed czo�em, ale nie dalej ni� fala dojdzie w tym kroku
         if (std::fabs(s) > maxAdvance)
             continue;
 
         // rzut mikrofonu na p�aszczyzn� czo�a
-        glm::vec3 proj = center - s * n_hat;
+        vec3f proj = center - (n_hat * s);
 
         // centra dla proj
-        glm::vec3 v0 = ab;
-        glm::vec3 v1 = ac;
-        glm::vec3 v2 = proj - a;
+        vec3f v0 = ab;
+        vec3f v1 = ac;
+        vec3f v2 = proj - a;
 
-        float d00 = glm::dot(v0, v0);
-        float d01 = glm::dot(v0, v1);
-        float d11 = glm::dot(v1, v1);
-        float d20 = glm::dot(v2, v0);
-        float d21 = glm::dot(v2, v1);
+        float d00 = vec3f::dot(v0, v0);
+        float d01 = vec3f::dot(v0, v1);
+        float d11 = vec3f::dot(v1, v1);
+        float d20 = vec3f::dot(v2, v0);
+        float d21 = vec3f::dot(v2, v1);
         float denom = d00 * d11 - d01 * d01;
         if (std::fabs(denom) < 1e-12f)
             continue;
@@ -381,7 +381,7 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, shared_p
         }
         bool hitMic = false;
         hitMic = touchesMicrophonePoint(dt, Mic, wave, (int)i);
-        //glm::vec3 buf = wave->nodes[i].position - glm::vec3(Mic.mic_x, Mic.mic_y, Mic.mic_z);
+        //vec3f buf = wave->nodes[i].position - vec3f(Mic.mic_x, Mic.mic_y, Mic.mic_z);
         if (hitMic)
         {
             float p = wave->nodes[i].energy;
@@ -401,9 +401,9 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, shared_p
 
             ktore_odbicie++;
             // DOPPLER (rozci�gni�cie/�ci�ni�cie osi czasu okna)
-            const glm::vec3 n_hat = glm::normalize(wave->nodes[i].velocity);
-            const float v_mic_proj = glm::dot(Mic.mic_velocity, n_hat);
-            float vel_test = glm::length(wave->nodes[i].velocity);
+            const vec3f n_hat = vec3f::normalized(wave->nodes[i].velocity);
+            const float v_mic_proj = vec3f::dot(Mic.mic_velocity, n_hat);
+            float vel_test = vec3f::length(wave->nodes[i].velocity);
             // CECHY echa
             if (r > 1)
                 wave->nodes[i].energy = p / (r);
@@ -412,10 +412,10 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, shared_p
             curHit.energy = std::fabs(wave->nodes[i].energy);
             curHit.bounces = wave->nodes[i].bounces;
             curHit.doppler = wave->nodes[i].doppler;
-            curHit.dir_in = glm::normalize(wave->nodes[i].velocity);
+            curHit.dir_in = wave->nodes[i].velocity.normalized();
             int test = -1;
 
-            const glm::vec3 micC(Mic.mic_x, Mic.mic_y, Mic.mic_z);
+            vec3f micC {Mic.mic_x, Mic.mic_y, Mic.mic_z};
 
             // Proba dopasowania okna do poprzedniego echa
             if (wave->gWinIdx != 0 && !Mic.gPrevHits.empty())
@@ -484,13 +484,13 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, shared_p
 
             // O�LEPIANIE WY��CZNIE TEGO SAMEGO CZO�A - zeby nie odczytac 2 razy tego samego
             // Wersja sta�a:
-            const float blind_until = T + 0.00005f;
+            float blind_until = T + 0.00005f;
 
             // parametry filtr�w klastra
-            const glm::vec3 center = wave->nodes[i].position; // pozycja trafionego noda
-            // const glm::vec3 micC = glm::vec3(Mic.mic_x, Mic.mic_y, Mic.mic_z);
-            const float cosMax = std::cos(glm::radians(20.0f));          // max r�nica kierunku
-            const float s_i = glm::dot(micC - wave->nodes[i].position, n_hat); // proxy czasu doj�cia
+            vec3f center = wave->nodes[i].position; // pozycja trafionego noda
+
+            float cosMax = std::cos(glm::radians(20.0f));          // max r�nica kierunku
+            float s_i = vec3f::dot(micC - wave->nodes[i].position, n_hat); // proxy czasu doj�cia
 
             for (size_t j = 0; j < wave->nodes.size(); ++j)
             {
@@ -502,12 +502,12 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, shared_p
                     continue;
 
                 // Zgodny kierunek propagacji (wyklucz inne odbicia)
-                const glm::vec3 nj_hat = glm::normalize(wave->nodes[j].velocity);
-                if (glm::dot(n_hat, nj_hat) < cosMax)
+                const vec3f nj_hat = vec3f::normalized(wave->nodes[j].velocity);
+                if (vec3f::dot(n_hat, nj_hat) < cosMax)
                     continue;
 
                 // Node musi zbli�a� si� do mikrofonu
-                const float s_j = glm::dot(micC - wave->nodes[j].position, nj_hat);
+                const float s_j = vec3f::dot(micC - wave->nodes[j].position, nj_hat);
                 // if (s_j <= 0.0f) continue;
 
                 // Zbli�ony przewidywany czas doj�cia
@@ -515,7 +515,7 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, shared_p
                     continue;
 
                 // Blisko w przestrzeni (ok. �3 tr�jk�ty�)
-                if (glm::length(wave->nodes[j].position - center) > wave->gBlindRadius)
+                if (vec3f::length(wave->nodes[j].position - center) > wave->gBlindRadius)
                     continue;
 
                 

@@ -19,8 +19,18 @@ using std::unordered_map;
 
 #include "RedCppLib/RedCppLib.hpp"
 
+using Red::vec2f;
+using Red::vec3f;
+using Red::vec3i;
+
 #include "datatypes.hpp"
+
+#include "CollisionMaterials/CollisionMaterial.hpp"
+
+#include "CollisionObjects/CollisionObject.hpp"
+
 #include "UASimConstants.hpp"
+
 #include "geometry.hpp"
 #include "wave.hpp"
 #include "microphone.hpp"

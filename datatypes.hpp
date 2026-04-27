@@ -8,7 +8,7 @@ struct EchoHit
     float energy = 0.f;           // energy noda
     float doppler = 1.f;          // nodes[i].doppler
     int bounces = 0;              // nodes[i].bounces
-    glm::vec3 dir_in = {0, 0, 1}; // znormalizowany kierunek fali w chwili trafienia (velocity)
+    vec3f dir_in = {0, 0, 1}; // znormalizowany kierunek fali w chwili trafienia (velocity)
 };
 
 struct MeshGL
@@ -24,16 +24,15 @@ struct Triangle
     int indices[3];
 };
 
-struct node
+struct ray
 {
-    glm::vec3 position = {0, 0, 0};
-    glm::vec3 velocity = {0, 0, 0}; // kierunek propagacji * C_SOUND
+    vec3f position = {0, 0, 0};
+    vec3f velocity = {0, 0, 0}; // kierunek propagacji * C_SOUND
     float energy = 0.0f;
     uint8_t bounces = 0; // ile odbic
     float tEmit = 0.0f;  // czas emisji (sim-time)
     int seedId = -1;     // indeks wierzcho�ka siatki
     float suppressUntilT = -1e30f;
-    // float path = 0.0f;
     float doppler = 1.0f;
 };
 
@@ -43,10 +42,10 @@ struct SoundSource
     float src_y = 0;
     float src_z = 0;
     // glm::vec3 starting_point = glm::vec3(src_x, src_y, src_z);
-    glm::vec3 velocity = glm::vec3(0.0f, 0, 0);
-    glm::vec3 rewind_point = glm::vec3(src_x, src_y, src_z);
-    glm::vec3 rewind_vel = velocity;
-    std::vector<node> verts;
+    vec3f velocity = vec3f{0.0f, 0, 0};
+    vec3f rewind_point = vec3f{src_x, src_y, src_z};
+    vec3f rewind_vel = vec3f{0.0f, 0.0f, 0.0f};
+    std::vector<ray> verts;
     float radius = 0.02f;
 };
 
@@ -73,3 +72,20 @@ struct MicSample
     float t;
     float value;
 }; // czas i wartos
+
+
+struct ray_collision
+{
+    bool has_collided;
+    bool has_delay;
+
+    int surface;
+    vec2f surface_coordinates;
+    vec3f collision_point;
+    vec3f collision_normal;
+
+    vec3f exit_position;
+    vec3f exit_vector;
+    float exit_energy;
+    float exit_delay;
+};

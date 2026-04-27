@@ -29,17 +29,17 @@ inline uint64_t edge_key(int a, int b)
 }
 
 // rzut na sfer� (promie� r)
-inline glm::vec3 normalize_to_radius(const glm::vec3 &p, float r)
+inline vec3f normalize_to_radius(const vec3f &p, float r)
 {
-    float len = glm::length(p);
+    float len = vec3f::length(p);
     if (len == 0.0f)
-        return glm::vec3(r, 0, 0);
+        return vec3f{r, 0, 0};
     return (p / len) * r;
 }
 
 // zwraca indeks �rodkowego wierzcho�ka (bez duplikatow)
 inline int midpoint_index(int i0, int i1,
-                          std::vector<glm::vec3> &verts,
+                          std::vector<vec3f> &verts,
                           std::unordered_map<uint64_t, int> &cache,
                           float radius)
 {
@@ -48,7 +48,7 @@ inline int midpoint_index(int i0, int i1,
     if (it != cache.end())
         return it->second;
 
-    glm::vec3 m = 0.5f * (verts[i0] + verts[i1]);
+    vec3f m = (verts[i0] + verts[i1]) * 0.5f;
     m = normalize_to_radius(m, radius); // PROJEKCJA NA SFER�
     int idx = (int)verts.size();
     verts.push_back(m);
@@ -56,54 +56,54 @@ inline int midpoint_index(int i0, int i1,
     return idx;
 }
 
-inline float computeAvgEdgeLen(const std::vector<glm::vec3> &V,
-                               const std::vector<glm::ivec3> &F)
+inline float computeAvgEdgeLen(const std::vector<vec3f> &V,
+                               const std::vector<vec3i> &F)
 {
     double sum = 0;
     size_t cnt = 0;
     for (auto &t : F)
     {
         const auto &a = V[t.x], &b = V[t.y], &c = V[t.z];
-        sum += glm::length(a - b);
+        sum += vec3f::length(a - b);
         ++cnt;
-        sum += glm::length(b - c);
+        sum += vec3f::length(b - c);
         ++cnt;
-        sum += glm::length(c - a);
+        sum += vec3f::length(c - a);
         ++cnt;
     }
     return cnt ? float(sum / cnt) : 0.0f;
 }
 
 
-inline float dist2PointSegment(const glm::vec3 &p,
-                               const glm::vec3 &a,
-                               const glm::vec3 &b)
+inline float dist2PointSegment(const vec3f &p,
+                               const vec3f &a,
+                               const vec3f &b)
 {
-    glm::vec3 ab = b - a;
-    float ab2 = glm::dot(ab, ab);
+    vec3f ab = b - a;
+    float ab2 = vec3f::dot(ab, ab);
     if (ab2 < 1e-12f)
     {
 
-        glm::vec3 d = p - a;
-        return glm::dot(d, d);
+        vec3f d = p - a;
+        return vec3f::dot(d, d);
     }
 
-    float t = glm::dot(p - a, ab) / ab2;
+    float t = vec3f::dot(p - a, ab) / ab2;
     t = std::clamp(t, 0.0f, 1.0f);
-    glm::vec3 q = a + t * ab;
-    glm::vec3 d = p - q;
-    return glm::dot(d, d);
+    vec3f q = a + (ab * t);
+    vec3f d = p - q;
+    return vec3f::dot(d, d);
 }
 
-inline float dist2PointTriangle(const glm::vec3 &p,
-                                const glm::vec3 &a,
-                                const glm::vec3 &b,
-                                const glm::vec3 &c)
+inline float dist2PointTriangle(const vec3f &p,
+                                const vec3f &a,
+                                const vec3f &b,
+                                const vec3f &c)
 {
-    glm::vec3 ab = b - a;
-    glm::vec3 ac = c - a;
-    glm::vec3 n = glm::cross(ab, ac);
-    float n2 = glm::dot(n, n);
+    vec3f ab = b - a;
+    vec3f ac = c - a;
+    vec3f n = vec3f::cross(ab, ac);
+    float n2 = vec3f::dot(n, n);
 
     if (n2 < 1e-12f)
     {
@@ -113,19 +113,19 @@ inline float dist2PointTriangle(const glm::vec3 &p,
         return std::min(d2ab, std::min(d2bc, d2ca));
     }
 
-    glm::vec3 nNorm = n / std::sqrt(n2);
-    float distPlane = glm::dot(p - a, nNorm);
-    glm::vec3 proj = p - distPlane * nNorm;
+    vec3f nNorm = n / std::sqrt(n2);
+    float distPlane = vec3f::dot(p - a, nNorm);
+    vec3f proj = p - (nNorm * distPlane);
 
-    glm::vec3 v0 = ab;
-    glm::vec3 v1 = ac;
-    glm::vec3 v2 = proj - a;
+    vec3f v0 = ab;
+    vec3f v1 = ac;
+    vec3f v2 = proj - a;
 
-    float d00 = glm::dot(v0, v0);
-    float d01 = glm::dot(v0, v1);
-    float d11 = glm::dot(v1, v1);
-    float d20 = glm::dot(v2, v0);
-    float d21 = glm::dot(v2, v1);
+    float d00 = vec3f::dot(v0, v0);
+    float d01 = vec3f::dot(v0, v1);
+    float d11 = vec3f::dot(v1, v1);
+    float d20 = vec3f::dot(v2, v0);
+    float d21 = vec3f::dot(v2, v1);
     float denom = d00 * d11 - d01 * d01;
 
     float u = -1.f, v = -1.f, w = -1.f;
@@ -163,38 +163,39 @@ inline float q5_inter(float inv_fp, float t)
 
 // Zwraca sfer� wok� (0,0,0) o promieniu 'radius' i g�sto�ci 'subdiv'
 inline void buildIcosphereNodesTris(float radius, int subdiv,
-                                    std::vector<node> &out_nodes,
+                                    std::vector<ray> &out_nodes,
                                     std::vector<Triangle> &out_tris)
 {
     // 12 wierzcho�k�w fali
     const float t = (1.0f + std::sqrt(5.0f)) * 0.5f;
-    std::vector<glm::vec3> verts = {
-        glm::normalize(glm::vec3(-1, t, 0)),
-        glm::normalize(glm::vec3(1, t, 0)),
-        glm::normalize(glm::vec3(-1, -t, 0)),
-        glm::normalize(glm::vec3(1, -t, 0)),
-
-        glm::normalize(glm::vec3(0, -1, t)),
-        glm::normalize(glm::vec3(0, 1, t)),
-        glm::normalize(glm::vec3(0, -1, -t)),
-        glm::normalize(glm::vec3(0, 1, -t)),
-
-        glm::normalize(glm::vec3(t, 0, -1)),
-        glm::normalize(glm::vec3(t, 0, 1)),
-        glm::normalize(glm::vec3(-t, 0, -1)),
-        glm::normalize(glm::vec3(-t, 0, 1)),
+    std::vector<vec3f> verts = 
+    {
+        vec3f::normalized(vec3f{-1, t, 0}),
+        vec3f::normalized(vec3f{1, t, 0}),
+        vec3f::normalized(vec3f{-1, -t, }),
+        vec3f::normalized(vec3f{1, -t, 0}),
+        
+        vec3f::normalized(vec3f{0, -1, t}),
+        vec3f::normalized(vec3f{0, 1, t}),
+        vec3f::normalized(vec3f{0, -1, -t}),
+        vec3f::normalized(vec3f{0, 1, -t}),
+        
+        vec3f::normalized(vec3f{t, 0, -1}),
+        vec3f::normalized(vec3f{t, 0, 1}),
+        vec3f::normalized(vec3f{-t, 0, -1}),
+        vec3f::normalized(vec3f{-t, 0, 1}),
     };
     for (auto &v : verts)
         v *= radius;
 
-    std::vector<glm::ivec3> faces = {
+    std::vector<vec3i> faces = {
         {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11}, {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8}, {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9}, {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}};
 
     // podzialy z krawedzi
     for (int s = 0; s < subdiv; ++s)
     {
         std::unordered_map<uint64_t, int> cache;
-        std::vector<glm::ivec3> new_faces;
+        std::vector<vec3i> new_faces;
         new_faces.reserve(faces.size() * 4);
 
         for (const auto &f : faces)
@@ -217,9 +218,9 @@ inline void buildIcosphereNodesTris(float radius, int subdiv,
     out_nodes.reserve(verts.size());
     for (const auto &p : verts)
     {
-        node nd;
+        ray nd;
         nd.position = p;
-        nd.velocity = glm::vec3(0); // statyczne
+        nd.velocity = vec3f{0}; // statyczne
         nd.energy = 0.0f;
         out_nodes.push_back(nd);
     }
