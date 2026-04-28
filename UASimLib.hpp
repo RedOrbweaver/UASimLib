@@ -26,8 +26,10 @@ using Red::vec3i;
 #include "datatypes.hpp"
 
 #include "CollisionMaterials/CollisionMaterial.hpp"
+#include "CollisionMaterials/CollisionNullMaterial.hpp"
 
 #include "CollisionObjects/CollisionObject.hpp"
+#include "CollisionObjects/CollisionBox.hpp"
 
 #include "UASimConstants.hpp"
 

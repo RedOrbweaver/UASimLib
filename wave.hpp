@@ -8,11 +8,14 @@ class Wave
     private:
     protected:
     public:
+    std::vector<shared_ptr<CollisionObject>> objects;
     std::vector<ray> nodes;
+    std::vector<ray> prev_nodes;
     std::vector<ray> mic_nodes;
     std::vector<ray> src_nodes;
     std::vector<Triangle> triangles;
     std::unordered_map<uint64_t, int> gEdgeMidCache; // edge -> midpoint
+    std::vector<Red::vec<float, 6>> aabbs;
     bool mesh_dirty = true;
 
     float gAvgEdgeLen = 0.0f;                     // siatka
@@ -30,7 +33,6 @@ class Wave
 
     protected:
     size_t gRefineCursor = 0;
-
 
 
     int addMidpoint(int a, int b)
@@ -482,6 +484,15 @@ class Wave
         gAvgEdgeLen = computeAvgEdgeLen(verts, faces);
         gBlindRadius = gBlindRings * gAvgEdgeLen;
     }
+    
+    void AddCollisionObject(shared_ptr<CollisionObject> object)
+    {
+        objects.push_back(object);
+        Red::vec<float, 6> aabb;
+        object->GetAABB(aabb);
+        aabbs.push_back(aabb);
+    }
+
     Wave(float frequency, float delta_step, int windows, vector<WindowPacket> packets)
     {
         inv_fp = frequency;

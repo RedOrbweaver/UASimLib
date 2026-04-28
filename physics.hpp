@@ -326,6 +326,40 @@ inline void updatePhysics(float dt, float window_ms, float time_passed, shared_p
     bounce1D(source.src_y, source.velocity.y, -Pool_halfH + Pool.y_offset, Pool_halfH + Pool.y_offset);
     bounce1D(source.src_z, source.velocity.z, -Pool_halfD + Pool.z_offset, Pool_halfD + Pool.z_offset);
 
+    for(int i = 0; i < wave->objects.size(); i++)
+    {
+        wave->objects[i]->GetAABB(wave->aabbs[i]);
+    }
+    for(auto& r : wave->nodes)
+    {
+        ray_collision rc;
+        for(int i = 0; i < wave->aabbs.size(); i++)
+        {
+            const auto& o = wave->objects[i];
+            const auto& aabb = wave->aabbs[i];
+            bool inside_aabb = true;
+            for(int ii = 0; ii < 3; ii++)
+            {
+                inside_aabb = r.position[ii] >= aabb[ii] && r.position[ii] <= aabb[ii + 3];
+                if(!inside_aabb)
+                    break;
+            }
+            
+            if(inside_aabb)
+            {
+                o->RayCollision(dt, time_passed, r, rc);
+                if(rc.has_collided)
+                {
+                    r.position = rc.exit_position;
+                    r.velocity = rc.exit_vector;
+                    r.bounces++;
+                    // TODO: calculate doppler effect
+                    break;
+                }
+            }
+        }
+    }
+
     // odbicia fali od scian
     for (int i = 0; i < (int)wave->nodes.size(); ++i)
     {

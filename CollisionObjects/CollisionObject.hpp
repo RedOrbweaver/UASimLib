@@ -1,5 +1,4 @@
 #pragma once
-// #include "UASimLib.hpp"
 
 class CollisionObject
 {
@@ -12,14 +11,14 @@ class CollisionObject
         std::vector<vec3f> vertices;
         std::vector<int> indices;
         std::vector<vec3f> vertices_raw;
-        void* custom_data;
+        std::any custom_data;
     };
-    void* custom_data;
+    std::any custom_data;
     protected:
     std::vector<shared_ptr<Surface>> surfaces;
     virtual void RayCollisionInternal(float delta, float time, ray& r, ray_collision& rc) = 0;
     public:
-    virtual Red::vec<float, 6> GetAABB() = 0;
+    virtual void GetAABB(Red::vec<float, 6>& aabb) = 0;
     virtual void RayCollision(float delta, float time, ray& r, ray_collision& rc)
     {
         RayCollisionInternal(delta, time, r, rc);
